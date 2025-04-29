@@ -156,7 +156,7 @@ def generate_summary(transcription: str, context: str) -> str:
         f"Transcrição:\n{transcription}"
     )
     response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
+        model="gpt-4-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
