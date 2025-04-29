@@ -2,17 +2,17 @@
 
 A Python tool that:
 
-	•	Downloads a video from Google Drive or Zoom links,
-	•	Extracts the audio track,
-	•	Transcribes the speech using OpenAI Whisper,
-	•	Generates a friendly class summary using GPT-4 Turbo.
+ - Downloads a video from Google Drive or Zoom links,
+ - Extracts the audio track,
+ - Transcribes the speech using OpenAI Whisper,
+ - Generates a friendly class summary using GPT-4 Turbo.
 
 
-## Requirements
+### Requirements
 
-	•	Python 3.11+
-	•	ffmpeg installed and available in your system PATH
-	•	OpenAI API Key stored in a .env file
+ - Python 3.11+
+ - ffmpeg installed and available in your system PATH
+ - OpenAI API Key stored in a .env file
 
 ## Installation
 
@@ -84,13 +84,13 @@ Both files will be created in the current working directory.
 
 ## Project Structure
 
+```
 ├── generate_summary.py  # Main script
 ├── requirements.txt     # Python dependencies
 ├── .env                 # Your OpenAI API key (not versioned)
 ├── transcript.txt       # (Generated) full transcription
 ├── summary.txt          # (Generated) GPT-4 friendly summary
-
-
+```
 
 ## 📢 Example Output
 
