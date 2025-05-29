@@ -175,7 +175,7 @@ def save_output(content: str, filename: str) -> None:
     print(f"💾 Saved: {filename}")
 
 
-def input_with_timeout(prompt: str, timeout: int = 30) -> Optional[str]:
+def input_with_timeout(prompt: str, timeout: int = 60) -> Optional[str]:
     """Prompt user input with timeout.
 
     Args:
@@ -211,6 +211,10 @@ def main() -> None:
         "--model", default="base",
         help="Whisper model: tiny, base, small, medium, large"
     )
+    parser.add_argument(
+        "--instructions", default=None,
+        help="Instructions for GPT-4-turbo summary (optional)"
+    )
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -223,10 +227,10 @@ def main() -> None:
         download_video(url, video_path)
         extract_audio(video_path, audio_path)
 
-        context = input_with_timeout(
-            "📝 (Optional) Context for the summary "
-            "(30s timeout):\n> "
-        ) or "Resumo da aula."
+        if not (context := args.instructions):
+            context =  input_with_timeout(
+                "📝 (Optional) Context for the summary (30s timeout):\n> "
+            ) or "Resumo da aula."
 
         transcript = transcribe(audio_path, args.model)
         summary = generate_summary(transcript, context)
