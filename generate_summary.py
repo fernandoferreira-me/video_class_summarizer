@@ -89,7 +89,7 @@ def download_video(url: str, dest_path: str) -> None:
     """
     if is_google_drive_url(url):
         print(f"📥 Downloading from Google Drive (via gdown): {url}")
-        gdown.download(url, dest_path, quiet=False, fuzzy=True)
+        gdown.download(url, dest_path, quiet=False)
     else:
         print(f"🌐 Downloading from external URL: {url}")
         r = requests.get(url, stream=True)
@@ -200,12 +200,17 @@ def input_with_timeout(prompt: str, timeout: int = 60) -> Optional[str]:
 
 
 def main() -> None:
-    """Main workflow: download, transcribe, summarize and save outputs."""
+    """Main workflow: download or use local video, transcribe, summarize and save outputs."""
     parser = argparse.ArgumentParser(
         description="Transcribe and summarize a video class."
     )
     parser.add_argument(
-        "video_url", help="Video URL (Google Drive or Zoom link)"
+        "--video_url",
+        help="Video URL (Google Drive or Zoom link)"
+    )
+    parser.add_argument(
+        "--video_path",
+        help="Local path to video file (e.g., .mp4)"
     )
     parser.add_argument(
         "--model", default="base",
@@ -217,18 +222,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if not args.video_url and not args.video_path:
+        parser.error("You must provide either --video_url or --video_path.")
+
     with tempfile.TemporaryDirectory() as tmp:
-        video_path = os.path.join(tmp, "video.mp4")
+        tmp_video_path = os.path.join(tmp, "video.mp4")
         audio_path = os.path.join(tmp, "audio.wav")
 
-        url = convert_drive_url(args.video_url) if is_google_drive_url(
-            args.video_url
-        ) else args.video_url
-        download_video(url, video_path)
-        extract_audio(video_path, audio_path)
+        if args.video_path:
+            # Copia o vídeo local para o diretório temporário
+            os.system(f"cp '{args.video_path}' '{tmp_video_path}'")
+        else:
+            url = convert_drive_url(args.video_url) if is_google_drive_url(
+                args.video_url
+            ) else args.video_url
+            download_video(url, tmp_video_path)
+
+        extract_audio(tmp_video_path, audio_path)
 
         if not (context := args.instructions):
-            context =  input_with_timeout(
+            context = input_with_timeout(
                 "📝 (Optional) Context for the summary (30s timeout):\n> "
             ) or "Resumo da aula."
 
@@ -240,7 +253,6 @@ def main() -> None:
 
         print("\n✅ Summary ready:\n")
         print(summary)
-
 
 if __name__ == "__main__":
     main()
