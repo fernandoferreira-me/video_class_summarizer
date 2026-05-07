@@ -24,6 +24,8 @@ Author:
 
 import os
 import re
+import hashlib
+import shutil
 import whisper
 import torch
 import tempfile
@@ -47,6 +49,24 @@ api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("❌ OPENAI_API_KEY not found in .env file.")
 client = OpenAI(api_key=api_key)
+
+
+def get_cache_key(identifier: str) -> str:
+    """Return a short deterministic key for a URL or file path."""
+    return hashlib.sha256(identifier.encode()).hexdigest()[:16]
+
+
+def ask_redo(phase: str) -> bool:
+    """Ask the user whether to redo an already-completed phase.
+
+    Args:
+        phase (str): Human-readable phase name.
+
+    Returns:
+        bool: True if the user wants to redo the phase.
+    """
+    answer = input(f"🔄 {phase} already cached. Redo? [y/N]: ").strip().lower()
+    return answer == "y"
 
 
 def is_google_drive_url(url: str) -> bool:
@@ -200,7 +220,12 @@ def input_with_timeout(prompt: str, timeout: int = 60) -> Optional[str]:
 
 
 def main() -> None:
-    """Main workflow: download or use local video, transcribe, summarize and save outputs."""
+    """Main workflow: download or use local video, transcribe, summarize and save outputs.
+
+    Intermediate results (audio, transcript, summary) are cached in .cache/<hash>/
+    keyed by the video URL or absolute path. Each phase prompts the user before
+    being redone when a cached result already exists.
+    """
     parser = argparse.ArgumentParser(
         description="Transcribe and summarize a video class."
     )
@@ -225,34 +250,66 @@ def main() -> None:
     if not args.video_url and not args.video_path:
         parser.error("You must provide either --video_url or --video_path.")
 
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_video_path = os.path.join(tmp, "video.mp4")
-        audio_path = os.path.join(tmp, "audio.wav")
+    # Derive a stable cache key from the canonical video identifier.
+    identifier = (
+        os.path.abspath(args.video_path) if args.video_path else args.video_url
+    )
+    cache_dir = os.path.join(".cache", get_cache_key(identifier))
+    os.makedirs(cache_dir, exist_ok=True)
+    print(f"📂 Cache directory: {cache_dir}")
 
-        if args.video_path:
-            # Copia o vídeo local para o diretório temporário
-            os.system(f"cp '{args.video_path}' '{tmp_video_path}'")
-        else:
-            url = convert_drive_url(args.video_url) if is_google_drive_url(
-                args.video_url
-            ) else args.video_url
-            download_video(url, tmp_video_path)
+    cached_audio = os.path.join(cache_dir, "audio.wav")
+    cached_transcript = os.path.join(cache_dir, "transcript.txt")
+    cached_summary = os.path.join(cache_dir, "summary.txt")
 
-        extract_audio(tmp_video_path, audio_path)
+    # ── Phase 1: Download + audio extraction ────────────────────────────────
+    if os.path.exists(cached_audio) and not ask_redo("Audio extraction"):
+        print("♻️  Using cached audio.")
+    else:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_video_path = os.path.join(tmp, "video.mp4")
+            if args.video_path:
+                shutil.copy(args.video_path, tmp_video_path)
+            else:
+                url = (
+                    convert_drive_url(args.video_url)
+                    if is_google_drive_url(args.video_url)
+                    else args.video_url
+                )
+                download_video(url, tmp_video_path)
+            extract_audio(tmp_video_path, cached_audio)
 
+    # ── Phase 2: Transcription ───────────────────────────────────────────────
+    if os.path.exists(cached_transcript) and not ask_redo("Transcription"):
+        print("♻️  Using cached transcript.")
+        with open(cached_transcript, "r", encoding="utf-8") as f:
+            transcript = f.read()
+    else:
+        transcript = transcribe(cached_audio, args.model)
+        save_output(transcript, cached_transcript)
+
+    # ── Phase 3: Summary generation ──────────────────────────────────────────
+    redo_summary = (
+        not os.path.exists(cached_summary) or ask_redo("Summary generation")
+    )
+    if redo_summary:
         if not (context := args.instructions):
             context = input_with_timeout(
                 "📝 (Optional) Context for the summary (30s timeout):\n> "
             ) or "Resumo da aula."
-
-        transcript = transcribe(audio_path, args.model)
         summary = generate_summary(transcript, context)
+        save_output(summary, cached_summary)
+    else:
+        print("♻️  Using cached summary.")
+        with open(cached_summary, "r", encoding="utf-8") as f:
+            summary = f.read()
 
-        save_output(transcript, "transcript.txt")
-        save_output(summary, "summary.txt")
+    # ── Final outputs ────────────────────────────────────────────────────────
+    save_output(transcript, "transcript.txt")
+    save_output(summary, "summary.txt")
 
-        print("\n✅ Summary ready:\n")
-        print(summary)
+    print("\n✅ Summary ready:\n")
+    print(summary)
 
 if __name__ == "__main__":
     main()
