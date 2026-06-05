@@ -2,13 +2,13 @@
 
 This script downloads a video (Google Drive or external URL), extracts its
 audio, transcribes it using OpenAI's Whisper model, and summarizes the
-content using OpenAI GPT-4-turbo.
+content using OpenAI GPT-5.5.
 
 Features:
 - Automatic handling of Google Drive and external links
 - Audio extraction with ffmpeg
 - Whisper-based audio transcription
-- Context-aware summary generation via GPT-4-turbo
+- Context-aware summary generation via GPT-4.1
 - Temporary file handling (no local file clutter)
 - Timeout for optional user-provided context
 
@@ -167,7 +167,7 @@ def generate_summary(transcription: str, context: str) -> str:
     Returns:
         str: Generated summary.
     """
-    print("💬 Asking GPT-4-turbo for class summary...")
+    print("💬 Asking GPT-5.5 for class summary...")
     prompt = (
         f"{context}\n\n"
         "Fazer um resumo dessa aula, em tópicos para a turma! "
@@ -176,7 +176,7 @@ def generate_summary(transcription: str, context: str) -> str:
         f"Transcrição:\n{transcription}"
     )
     response = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model="gpt-5.5",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
@@ -243,7 +243,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--instructions", default=None,
-        help="Instructions for GPT-4-turbo summary (optional)"
+        help="Instructions for GPT-5.5 summary (optional)"
     )
     args = parser.parse_args()
 
@@ -262,8 +262,19 @@ def main() -> None:
     cached_transcript = os.path.join(cache_dir, "transcript.txt")
     cached_summary = os.path.join(cache_dir, "summary.txt")
 
+    # ── Upfront: collect all decisions before any slow phase ─────────────────
+    do_audio = not os.path.exists(cached_audio) or ask_redo("Audio extraction")
+    do_transcript = not os.path.exists(cached_transcript) or ask_redo("Transcription")
+    do_summary = not os.path.exists(cached_summary) or ask_redo("Summary generation")
+
+    context: Optional[str] = args.instructions
+    if do_summary and not context:
+        context = input_with_timeout(
+            "📝 (Optional) Context for the summary (30s timeout):\n> "
+        ) or "Resumo da aula."
+
     # ── Phase 1: Download + audio extraction ────────────────────────────────
-    if os.path.exists(cached_audio) and not ask_redo("Audio extraction"):
+    if not do_audio:
         print("♻️  Using cached audio.")
     else:
         with tempfile.TemporaryDirectory() as tmp:
@@ -280,7 +291,7 @@ def main() -> None:
             extract_audio(tmp_video_path, cached_audio)
 
     # ── Phase 2: Transcription ───────────────────────────────────────────────
-    if os.path.exists(cached_transcript) and not ask_redo("Transcription"):
+    if not do_transcript:
         print("♻️  Using cached transcript.")
         with open(cached_transcript, "r", encoding="utf-8") as f:
             transcript = f.read()
@@ -289,20 +300,13 @@ def main() -> None:
         save_output(transcript, cached_transcript)
 
     # ── Phase 3: Summary generation ──────────────────────────────────────────
-    redo_summary = (
-        not os.path.exists(cached_summary) or ask_redo("Summary generation")
-    )
-    if redo_summary:
-        if not (context := args.instructions):
-            context = input_with_timeout(
-                "📝 (Optional) Context for the summary (30s timeout):\n> "
-            ) or "Resumo da aula."
-        summary = generate_summary(transcript, context)
-        save_output(summary, cached_summary)
-    else:
+    if not do_summary:
         print("♻️  Using cached summary.")
         with open(cached_summary, "r", encoding="utf-8") as f:
             summary = f.read()
+    else:
+        summary = generate_summary(transcript, context)
+        save_output(summary, cached_summary)
 
     # ── Final outputs ────────────────────────────────────────────────────────
     save_output(transcript, "transcript.txt")
