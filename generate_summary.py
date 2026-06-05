@@ -158,7 +158,7 @@ def transcribe(file_path: str, model_name: str = "base") -> str:
 
 
 def generate_summary(transcription: str, context: str) -> str:
-    """Generate a friendly summary based on transcription and context.
+    """Generate a Classroom-ready post based on transcription and context.
 
     Args:
         transcription (str): Full transcribed text.
@@ -168,17 +168,33 @@ def generate_summary(transcription: str, context: str) -> str:
         str: Generated summary.
     """
     print("💬 Asking GPT-5.5 for class summary...")
-    prompt = (
+    system_prompt = (
+        "Você é um assistente que ajuda professores a compartilhar resumos de aula "
+        "no feed do Infnet.Online (plataforma da instituição, baseada no BuddyBoss). Sua tarefa é:\n"
+        "1. Analisar a transcrição e identificar o tom, vocabulário e estilo de comunicação do professor.\n"
+        "2. Escrever uma postagem para o feed da turma no mesmo tom da aula — "
+        "fluida e motivacional, sem excessos nem formalidade exagerada.\n"
+        "3. Estrutura obrigatória:\n"
+        "   - Parágrafo de abertura contextualizando a aula.\n"
+        "   - Um parágrafo de transição que introduza naturalmente os tópicos cobertos, "
+        "seguido de uma lista de no máximo 5 itens curtos e diretos (os pontos macro da aula). "
+        "A lista deve parecer parte do fluxo do texto, não um anexo separado.\n"
+        "   - 1 a 2 parágrafos finais aprofundando brevemente o que foi visto.\n"
+        "   - Uma frase de encerramento motivacional, no tom do professor, encorajando a turma "
+        "para os próximos passos.\n"
+        "4. Os alunos devem sair com uma visão macro do que foi visto, não um detalhamento exaustivo.\n"
+        "5. Escreva em português, mantendo a naturalidade da fala do professor."
+    )
+    user_prompt = (
         f"{context}\n\n"
-        "Fazer um resumo dessa aula, em tópicos para a turma! "
-        "Lembrar os tópicos abordados. "
-        "Falar de forma amigável e encorajadora.\n\n"
-        f"Transcrição:\n{transcription}"
+        f"Transcrição da aula:\n{transcription}"
     )
     response = client.chat.completions.create(
         model="gpt-5.5",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
     )
     return response.choices[0].message.content.strip()
 
