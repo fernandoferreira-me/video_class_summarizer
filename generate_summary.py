@@ -2,21 +2,21 @@
 
 This script downloads a video (Google Drive or external URL), extracts its
 audio, transcribes it using OpenAI's Whisper model, and summarizes the
-content using OpenAI GPT-5.5.
+content using OpenAI GPT-6.1 Terra.
 
 Features:
 - Automatic handling of Google Drive and external links
 - Audio extraction with ffmpeg
 - Whisper-based audio transcription
-- Context-aware summary generation via GPT-4.1
+- Context-aware summary generation via GPT-6.1 Terra
 - Temporary file handling (no local file clutter)
 - Timeout for optional user-provided context
 
 Usage:
-    python generate_summary.py <video_url> --model <whisper_model>
+    python generate_summary.py --video-url <video_url> --model <whisper_model>
 
 Example:
-    python generate_summary.py https://drive.google.com/yourfile --model base
+    python generate_summary.py --video-url https://drive.google.com/yourfile --model base
 
 Author:
     Fernando Ferreira
@@ -141,6 +141,9 @@ def extract_audio(video_path: str, audio_path: str) -> None:
     print("✅ Audio extracted.")
 
 
+GPT_MODEL = "gpt-6.1-terra"  # OpenAI model ID for GPT-6.1 Terra
+
+
 def transcribe(file_path: str, model_name: str = "base") -> str:
     """Transcribe an audio file using Whisper.
 
@@ -167,7 +170,7 @@ def generate_summary(transcription: str, context: str) -> str:
     Returns:
         str: Generated summary.
     """
-    print("💬 Asking GPT-5.5 for class summary...")
+    print("💬 Asking GPT-6.1 Terra for class summary...")
     system_prompt = (
         "Você é um assistente que ajuda professores a compartilhar resumos de aula "
         "no feed do Infnet.Online (plataforma da instituição, baseada no BuddyBoss). Sua tarefa é:\n"
@@ -190,7 +193,7 @@ def generate_summary(transcription: str, context: str) -> str:
         f"Transcrição da aula:\n{transcription}"
     )
     response = client.chat.completions.create(
-        model="gpt-5.5",
+        model=GPT_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -246,11 +249,11 @@ def main() -> None:
         description="Transcribe and summarize a video class."
     )
     parser.add_argument(
-        "--video_url",
+        "--video_url", "--video-url",
         help="Video URL (Google Drive or Zoom link)"
     )
     parser.add_argument(
-        "--video_path",
+        "--video_path", "--video-path",
         help="Local path to video file (e.g., .mp4)"
     )
     parser.add_argument(
@@ -259,7 +262,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--instructions", default=None,
-        help="Instructions for GPT-5.5 summary (optional)"
+        help="Instructions for GPT-6.1 Terra summary (optional)"
     )
     args = parser.parse_args()
 
